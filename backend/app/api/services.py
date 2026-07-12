@@ -3,11 +3,24 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
+from app.api.schemas import WeatherForecastOut
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
 
 from supabase import Client
+
+SG_TZ = ZoneInfo("Asia/Singapore")
+
+
+def _as_singapore(value: datetime | str) -> datetime:
+    """Interpret naive timestamps as Asia/Singapore; convert aware ones to SG."""
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        return value.replace(tzinfo=SG_TZ)
+    return value.astimezone(SG_TZ)
 
 
 def _run(query: Any) -> Any:
@@ -90,6 +103,38 @@ def nearest_prediction(
         .limit(1)
     )
     return past.data[0] if past.data else None
+
+
+def nearest_weather_forecast(
+    supabase: Client,
+    location_key: str,
+    around: datetime | None = None,
+    max_delay: timedelta = timedelta(minutes=15),
+) -> WeatherForecastOut | None:
+    """Return the weather forecast closest to `around` with |delay| <= max_delay.
+
+    Both `around` and stored `forecast_at` are treated as Asia/Singapore.
+    Naive datetimes are assumed to already be Singapore local time.
+    """
+    around = _as_singapore(around or datetime.now(SG_TZ))
+    window_start = around - max_delay
+    window_end = around + max_delay
+
+    result = _run(
+        supabase.table("weather_forecasts")
+        .select("forecast_at, temperature_2m, rain, source, fetched_at, created_at")
+        .eq("location_key", location_key)
+        .gte("forecast_at", window_start.isoformat())
+        .lte("forecast_at", window_end.isoformat())
+    )
+    rows = result.data or []
+    if not rows:
+        return None
+
+    def delay(row: dict[str, Any]) -> timedelta:
+        return abs(_as_singapore(row["forecast_at"]) - around)
+
+    return min(rows, key=delay)
 
 
 def forecast_predictions(
