@@ -13,6 +13,31 @@ class GymOut(BaseModel):
     is_active: bool
 
 
+class WeatherForecastCreate(BaseModel):
+    location_key: str
+    forecast_at: datetime
+    temperature_2m: float
+    rain: float = Field(ge=0)
+    source: str = "open-meteo"
+    fetched_at: datetime | None = None
+
+
+class WeatherForecastOut(BaseModel):
+    id: UUID
+    location_key: str
+    forecast_at: datetime
+    temperature_2m: float
+    rain: float
+    source: str
+    fetched_at: datetime
+    created_at: datetime
+
+
+class WeatherForecastListOut(BaseModel):
+    location_key: str
+    points: list[WeatherForecastOut]
+
+
 class OccupancyLatestOut(BaseModel):
     gym_slug: str
     gym_name: str
