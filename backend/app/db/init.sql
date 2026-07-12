@@ -54,7 +54,7 @@ CREATE INDEX idx_weather_forecasts_loc_time
   ON weather_forecasts (location_key, forecast_at DESC);
 
 -- Public read access for FastAPI (anon key) and PostgREST
-GRANT SELECT ON TABLE gyms TO anon, authenticated;
-GRANT SELECT ON TABLE crowd_readings TO anon, authenticated;
-GRANT SELECT ON TABLE crowd_predictions TO anon, authenticated;
-GRANT SELECT ON TABLE weather_forecasts TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.gyms TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.crowd_readings TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.crowd_predictions TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.weather_forecasts TO authenticated, service_role;
