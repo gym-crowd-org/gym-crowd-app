@@ -6,19 +6,17 @@ import pandas as pd
 import requests_cache
 from app.api.schemas import WeatherForecastOut
 from app.api.services import nearest_weather_forecast
-from app.db.client import get_supabase
 from retry_requests import retry
 
-supabase = get_supabase()
+from supabase import Client
+
 LOCATION_KEY = "nus-singapore"
 LATITUDE = 1.3667
 LONGITUDE = 103.8
 SG_TZ = ZoneInfo("Asia/Singapore")
 
 
-def get_weather_data(
-    timestamp: datetime,
-) -> pd.DataFrame:
+def get_weather_data(timestamp: datetime, supabase: Client) -> pd.DataFrame:
     """Get weather data from supabase or open-meteo."""
 
     weather_data: WeatherForecastOut | None = nearest_weather_forecast(

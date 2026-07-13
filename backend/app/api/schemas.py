@@ -68,8 +68,11 @@ class PredictNowOut(BaseModel):
 class PredictForecastOut(BaseModel):
     gym_slug: str
     gym_name: str
-    hours: int
-    points: list[PredictionPointOut]
+    timestamp: datetime
+    occupancy: int
+    capacity: int
+    occupancy_pct: float
+    model_version: str
 
 
 class HistoryPointOut(BaseModel):

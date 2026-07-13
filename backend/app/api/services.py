@@ -76,33 +76,32 @@ def latest_reading(supabase: Client, gym_id: UUID | str) -> dict[str, Any] | Non
     return result.data[0] if result.data else None
 
 
+def delay(row: dict[str, Any], attribute: str, around: datetime) -> timedelta:
+    return abs(_as_singapore(row[attribute]) - around)
+
+
 def nearest_prediction(
     supabase: Client,
     gym_id: UUID | str,
     around: datetime | None = None,
+    max_delay: timedelta = timedelta(minutes=10),
 ) -> dict[str, Any] | None:
     """Return the prediction closest to `around` (defaults to now), preferring future."""
-    around = around or datetime.now(timezone.utc)
-    upcoming = _run(
+    around = _as_singapore(around or datetime.now(SG_TZ))
+    window_start = around - max_delay
+    window_end = around + max_delay
+    result = _run(
         supabase.table("crowd_predictions")
         .select("predicted_for, occupancy, capacity, model_version")
         .eq("gym_id", str(gym_id))
-        .gte("predicted_for", around.isoformat())
-        .order("predicted_for", desc=False)
-        .limit(1)
+        .gte("predicted_for", window_start.isoformat())
+        .lte("predicted_for", window_end.isoformat())
     )
-    if upcoming.data:
-        return upcoming.data[0]
+    rows = result.data or []
+    if not rows:
+        return None
 
-    past = _run(
-        supabase.table("crowd_predictions")
-        .select("predicted_for, occupancy, capacity, model_version")
-        .eq("gym_id", str(gym_id))
-        .lt("predicted_for", around.isoformat())
-        .order("predicted_for", desc=True)
-        .limit(1)
-    )
-    return past.data[0] if past.data else None
+    return min(rows, key=lambda row: delay(row, "predicted_for", around))
 
 
 def nearest_weather_forecast(
@@ -131,10 +130,7 @@ def nearest_weather_forecast(
     if not rows:
         return None
 
-    def delay(row: dict[str, Any]) -> timedelta:
-        return abs(_as_singapore(row["forecast_at"]) - around)
-
-    return min(rows, key=delay)
+    return min(rows, key=lambda row: delay(row, "forecast_at", around))
 
 
 def forecast_predictions(
@@ -194,3 +190,12 @@ def occupancy_pct(occupancy: int, capacity: int) -> float:
     if capacity <= 0:
         return 0.0
     return round(occupancy / capacity, 4)
+
+
+def upsert_prediction(supabase: Client, rows: dict[str, Any]):
+    _run(
+        supabase.table("crowd_predictions").upsert(
+            rows,
+            on_conflict="gym_id,predicted_for,model_version",
+        )
+    )
