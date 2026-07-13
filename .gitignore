@@ -21,3 +21,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
+
+# Models
+backend/models/*.joblib
