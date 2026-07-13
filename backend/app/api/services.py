@@ -109,7 +109,7 @@ def nearest_weather_forecast(
     supabase: Client,
     location_key: str,
     around: datetime | None = None,
-    max_delay: timedelta = timedelta(minutes=15),
+    max_delay: timedelta = timedelta(minutes=30),
 ) -> WeatherForecastOut | None:
     """Return the weather forecast closest to `around` with |delay| <= max_delay.
 
