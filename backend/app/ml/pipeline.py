@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import joblib
 import pandas as pd
@@ -18,8 +19,8 @@ FEATURE_COLS = [
 ]
 TARGET_COL = "current"
 MODEL_DIR = "models"
-MODEL_PATH = f"{MODEL_DIR}/gym_crowd_model.joblib"
-MODEL_VERSION = "v1"
+MODEL_VERSION = os.getenv("MODEL_VERSION")
+MODEL_PATH = f"{MODEL_DIR}/gym_crowd_model_{MODEL_VERSION}.joblib"
 CAPACITY = 110
 
 
@@ -55,7 +56,7 @@ def prepare_features(
 def predict_crowd(
     supabase: Client, timestamp: datetime, gym_id: str, gym_name: str
 ) -> dict:
-    pipeline = joblib.load(f"{MODEL_DIR}/gym_crowd_model.joblib")
+    pipeline = joblib.load(MODEL_PATH)
     test_df = prepare_features(supabase, timestamp, gym_id, gym_name)
     predictions = pipeline.predict(test_df[FEATURE_COLS])
     occupancy = int(round(float(predictions[0])))
