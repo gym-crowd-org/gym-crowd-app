@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Link } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@base-ui/react/button";
 
 interface CrowdPredictionProps {
   gymName: string;
+  disablePredict?: boolean;
 }
 
 interface CrowdLevelResponse {
@@ -28,16 +29,56 @@ interface CrowdLevel {
   modelVersion: string;
 }
 
-export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0],
-  );
-  const [selectedTime, setSelectedTime] = useState<string>("13:00");
+const LEVELS = {
+  Low: { level: "Low", threshold: 20, color: "bg-green-500" },
+  Medium: { level: "Medium", threshold: 55, color: "bg-yellow-500" },
+  High: { level: "High", threshold: 85, color: "bg-red-500" },
+} as const;
 
-  // Generate time options in 15-minute intervals
+const SG_TIMEZONE = "Asia/Singapore";
+
+function getSingaporeDateTime() {
+  const now = new Date();
+  const date = now.toLocaleDateString("en-CA", { timeZone: SG_TIMEZONE });
+  const timeStr = now.toLocaleTimeString("en-GB", {
+    timeZone: SG_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const [hourStr, minuteStr] = timeStr.split(":");
+  const hour = parseInt(hourStr, 10);
+  const minute = Math.floor(parseInt(minuteStr, 10) / 15) * 15;
+  const time = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+
+  return { date, time };
+}
+
+function getLevelFromPercentage(percentage: number) {
+  if (percentage <= LEVELS.Low.threshold) return LEVELS.Low;
+  if (percentage <= LEVELS.Medium.threshold) return LEVELS.Medium;
+  return LEVELS.High;
+}
+
+export default function CrowdPrediction({
+  gymName,
+  disablePredict,
+}: CrowdPredictionProps) {
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [crowdData, setCrowdData] = useState<CrowdLevel | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const { date, time } = getSingaporeDateTime();
+    setSelectedDate(date);
+    setSelectedTime(time);
+  }, []);
+
   const generateTimeOptions = () => {
     const times = [];
-    for (let hour = 0; hour < 24; hour++) {
+    for (let hour = 0; hour <= 22; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
         times.push(
           `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`,
@@ -73,18 +114,37 @@ export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
       modelVersion: data.model_version,
     };
   };
-  // Turn selectTime and selectedDate into isoformat string
-  const isoString = `${selectedDate}T${selectedTime}:00`;
-  const crowdData = getCrowdLevel(isoString);
+
+  const handlePredict = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const isoString = `${selectedDate}T${selectedTime}:00`;
+      const data = await getCrowdLevel(isoString);
+      setCrowdData(data);
+    } catch (err) {
+      setCrowdData(null);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch crowd prediction",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const occupancyPercentage = crowdData
+    ? Math.round(crowdData.occupancyPercentage * 100)
+    : 0;
+  const levelInfo = crowdData
+    ? getLevelFromPercentage(occupancyPercentage)
+    : null;
 
   return (
     <div className="flex flex-col gap-6 rounded-2xl border-2 border-border bg-card p-8 shadow-lg transition-transform hover:shadow-xl">
-      {/* Gym Name */}
       <h2 className="text-center text-2xl font-bold text-primary">{gymName}</h2>
 
-      {/* Date and Time Selection */}
       <div className="flex flex-col gap-4">
-        {/* Date Picker */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-foreground">Date</label>
           <input
@@ -95,7 +155,6 @@ export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
           />
         </div>
 
-        {/* Time Picker */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-foreground">Time</label>
           <div className="relative">
@@ -115,46 +174,67 @@ export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
         </div>
       </div>
 
-      {/* Crowd Level Display */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-foreground">
-            Predicted Crowd Level
+      {isLoading && (
+        <p className="text-center text-sm text-muted-foreground">
+          Prediction in progress
+          <span className="inline-flex w-5">
+            <span className="animate-[pulse_1.4s_ease-in-out_infinite]">.</span>
+            <span className="animate-[pulse_1.4s_ease-in-out_0.2s_infinite]">
+              .
+            </span>
+            <span className="animate-[pulse_1.4s_ease-in-out_0.4s_infinite]">
+              .
+            </span>
           </span>
-          <span className="rounded-full bg-secondary px-3 py-1 text-sm font-bold text-secondary-foreground">
-            {crowdData.level}
-          </span>
-        </div>
+        </p>
+      )}
 
-        {/* Progress Bar */}
-        <div className="w-full gap-2">
-          <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={`h-full ${crowdData.color} transition-all duration-300`}
-              style={{ width: `${crowdData.percentage}%` }}
-            />
+      {error && <p className="text-center text-sm text-red-500">{error}</p>}
+
+      {crowdData && levelInfo && !isLoading && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">
+              Predicted Crowd Level
+            </span>
+            <span className="rounded-full bg-secondary px-3 py-1 text-sm font-bold text-secondary-foreground">
+              {levelInfo.level}
+            </span>
           </div>
-          <p className="text-right text-xs text-muted-foreground">
-            {crowdData.percentage}% capacity
-          </p>
-        </div>
-      </div>
 
-      {/* Additional Info */}
+          <div className="w-full gap-2">
+            <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full ${levelInfo.color} transition-all duration-300`}
+                style={{ width: `${Math.min(occupancyPercentage, 100)}%` }}
+              />
+            </div>
+            <p className="text-right text-xs text-muted-foreground">
+              {occupancyPercentage}% capacity
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg bg-secondary/10 p-4">
         <p className="text-center text-sm text-foreground">
           {selectedDate} at {selectedTime}
+          {crowdData && (
+            <>
+              {" · "}
+              {crowdData.occupancy}/{crowdData.capacity}
+            </>
+          )}
         </p>
       </div>
 
-      {/* Predict Crowd Level Button */}
-      <Button className="w-full rounded-lg bg-secondary/10 p-4">
-        <Link
-          href="/predictions"
-          className="text-primary hover:underline font-bold"
-        >
-          Predict Crowd Level
-        </Link>
+      <Button
+        type="button"
+        onClick={handlePredict}
+        disabled={isLoading || disablePredict}
+        className="w-full rounded-lg bg-primary px-4 py-3 font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Predict Crowd Level
       </Button>
     </div>
   );
