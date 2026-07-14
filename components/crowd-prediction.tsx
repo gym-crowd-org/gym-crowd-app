@@ -1,43 +1,81 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useState } from "react";
+import { ChevronDown, Link } from "lucide-react";
+import { Button } from "@base-ui/react/button";
 
 interface CrowdPredictionProps {
-  gymName: string
+  gymName: string;
+}
+
+interface CrowdLevelResponse {
+  gym_slug: string;
+  gym_name: string;
+  timestamp: string;
+  occupancy: number;
+  capacity: number;
+  occupancy_pct: number;
+  model_version: string;
+}
+
+interface CrowdLevel {
+  gymSlug: string;
+  gymName: string;
+  timestamp: string;
+  occupancy: number;
+  capacity: number;
+  occupancyPercentage: number;
+  modelVersion: string;
 }
 
 export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
-  const [selectedTime, setSelectedTime] = useState<string>('13:00')
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0],
+  );
+  const [selectedTime, setSelectedTime] = useState<string>("13:00");
 
   // Generate time options in 15-minute intervals
   const generateTimeOptions = () => {
-    const times = []
+    const times = [];
     for (let hour = 0; hour < 24; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
-        times.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`)
+        times.push(
+          `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`,
+        );
       }
     }
-    return times
-  }
+    return times;
+  };
 
-  const timeOptions = generateTimeOptions()
+  const timeOptions = generateTimeOptions();
 
-  // Mock crowd data (in real app, this would come from an API)
-  const getCrowdLevel = (time: string) => {
-    const hour = parseInt(time.split(':')[0])
-    // Peak times: 7-9am, 12-1pm, 5-7pm
-    if ((hour >= 7 && hour < 9) || (hour >= 12 && hour < 13) || (hour >= 17 && hour < 19)) {
-      return { level: 'High', percentage: 85, color: 'bg-red-500' }
-    } else if ((hour >= 9 && hour < 12) || (hour >= 13 && hour < 17) || (hour >= 19 && hour < 21)) {
-      return { level: 'Medium', percentage: 55, color: 'bg-yellow-500' }
-    } else {
-      return { level: 'Low', percentage: 20, color: 'bg-green-500' }
+  const getCrowdLevel = async (time: string): Promise<CrowdLevel> => {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    const params = new URLSearchParams({ timestamp: time });
+    const response = await fetch(
+      `${baseUrl}/api/predict/forecast?${params.toString()}`,
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch crowd prediction: ${response.status} ${response.statusText}`,
+      );
     }
-  }
 
-  const crowdData = getCrowdLevel(selectedTime)
+    const data: CrowdLevelResponse = await response.json();
+    return {
+      gymSlug: data.gym_slug,
+      gymName: data.gym_name,
+      timestamp: data.timestamp,
+      occupancy: data.occupancy,
+      capacity: data.capacity,
+      occupancyPercentage: data.occupancy_pct,
+      modelVersion: data.model_version,
+    };
+  };
+  // Turn selectTime and selectedDate into isoformat string
+  const isoString = `${selectedDate}T${selectedTime}:00`;
+  const crowdData = getCrowdLevel(isoString);
 
   return (
     <div className="flex flex-col gap-6 rounded-2xl border-2 border-border bg-card p-8 shadow-lg transition-transform hover:shadow-xl">
@@ -80,7 +118,9 @@ export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
       {/* Crowd Level Display */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-foreground">Predicted Crowd Level</span>
+          <span className="text-sm font-semibold text-foreground">
+            Predicted Crowd Level
+          </span>
           <span className="rounded-full bg-secondary px-3 py-1 text-sm font-bold text-secondary-foreground">
             {crowdData.level}
           </span>
@@ -94,7 +134,9 @@ export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
               style={{ width: `${crowdData.percentage}%` }}
             />
           </div>
-          <p className="text-right text-xs text-muted-foreground">{crowdData.percentage}% capacity</p>
+          <p className="text-right text-xs text-muted-foreground">
+            {crowdData.percentage}% capacity
+          </p>
         </div>
       </div>
 
@@ -104,6 +146,16 @@ export default function CrowdPrediction({ gymName }: CrowdPredictionProps) {
           {selectedDate} at {selectedTime}
         </p>
       </div>
+
+      {/* Predict Crowd Level Button */}
+      <Button className="w-full rounded-lg bg-secondary/10 p-4">
+        <Link
+          href="/predictions"
+          className="text-primary hover:underline font-bold"
+        >
+          Predict Crowd Level
+        </Link>
+      </Button>
     </div>
-  )
+  );
 }
