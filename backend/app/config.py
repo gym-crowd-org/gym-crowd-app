@@ -1,4 +1,5 @@
 from functools import lru_cache
+from os import getenv
 from urllib.parse import urlparse, urlunparse
 
 from pydantic import field_validator
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     cache_ttl_seconds: int = 900  # 15 minutes
 
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = getenv("CORS_ORIGINS")
 
     default_gym_slug: str = "usc-gym"
 
