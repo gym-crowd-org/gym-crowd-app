@@ -83,7 +83,13 @@ def get_predict_forecast(
     pred = nearest_prediction(supabase, gym_row["id"], timestamp)
     if pred is None:
         # call the ML pipeline to predict the crowd
-        pred = predict_crowd(supabase, timestamp, gym_row["id"], gym_row["name"])
+        pred = predict_crowd(
+            supabase,
+            timestamp,
+            gym_row["id"],
+            gym_row["name"],
+            gym_row["capacity"],
+        )
 
     payload = PredictForecastOut(
         gym_slug=gym_row["slug"],

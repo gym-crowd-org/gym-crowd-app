@@ -24,3 +24,11 @@ __pycache__/
 
 # Models
 backend/models/*.joblib
+
+
+# Developing
+.sustain/
+.agents/
+.archify/
+.claude/
+.devin/

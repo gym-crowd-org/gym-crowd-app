@@ -21,14 +21,17 @@ TARGET_COL = "current"
 MODEL_DIR = "models"
 MODEL_VERSION = os.getenv("MODEL_VERSION")
 MODEL_PATH = f"{MODEL_DIR}/gym_crowd_model_{MODEL_VERSION}.joblib"
-CAPACITY = 110
 
 
 def prepare_features(
-    supabase: Client, timestamp: datetime, gym_id: str, gym_name: str
+    supabase: Client,
+    timestamp: datetime,
+    gym_id: str,
+    gym_name: str,
+    gym_capacity: int,
 ) -> pd.DataFrame:
     df = pd.DataFrame(
-        [{"timestamp": timestamp, "name": gym_name, "capacity": CAPACITY}]
+        [{"timestamp": timestamp, "name": gym_name, "capacity": gym_capacity}]
     )
     ts = pd.to_datetime(df["timestamp"])
     if ts.dt.tz is None:
@@ -54,10 +57,16 @@ def prepare_features(
 
 
 def predict_crowd(
-    supabase: Client, timestamp: datetime, gym_id: str, gym_name: str
+    supabase: Client,
+    timestamp: datetime,
+    gym_id: str,
+    gym_name: str,
+    gym_capacity: int,
 ) -> dict:
     pipeline = joblib.load(MODEL_PATH)
-    test_df = prepare_features(supabase, timestamp, gym_id, gym_name)
+    test_df = prepare_features(
+        supabase, timestamp, gym_id, gym_name, gym_capacity
+    )
     predictions = pipeline.predict(test_df[FEATURE_COLS])
     occupancy = int(round(float(predictions[0])))
 
@@ -66,7 +75,7 @@ def predict_crowd(
             "gym_id": gym_id,
             "predicted_for": timestamp.isoformat(),
             "occupancy": occupancy,
-            "capacity": CAPACITY,
+            "capacity": gym_capacity,
             "model_version": MODEL_VERSION,
         }
     ]
