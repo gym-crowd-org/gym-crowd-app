@@ -56,6 +56,51 @@ def prepare_features(
     return df.merge(weather, on="weather_hour", how="left")
 
 
+def clamp_occupancy(value: float, capacity: int) -> int:
+    """Round a raw model output into the DB's allowed range [0, capacity]."""
+    return max(0, min(capacity, int(round(float(value)))))
+
+
+def load_model():
+    return joblib.load(MODEL_PATH)
+
+
+def predict_slots(
+    model,
+    gym_name: str,
+    gym_capacity: int,
+    slots: list[datetime.datetime],
+    weather: pd.DataFrame,
+) -> list[int]:
+    """Predict occupancy for many timestamps of one gym in a single model call.
+
+    `weather` has columns forecast_at (tz-aware, hourly), temperature_2m, rain.
+    Each slot uses the weather of its floored hour, as in training.
+    """
+    df = pd.DataFrame({"timestamp": pd.to_datetime(slots)})
+    df["timestamp"] = df["timestamp"].dt.tz_convert("Asia/Singapore")
+    df["name"] = gym_name
+    df["capacity"] = gym_capacity
+    df["hour"] = df["timestamp"].dt.hour
+    df["day_of_week"] = df["timestamp"].dt.dayofweek
+    df["is_weekend"] = df["day_of_week"].isin([5, 6]).astype(int)
+    df["weather_hour"] = df["timestamp"].dt.floor("h")
+
+    w = weather.copy()
+    w["weather_hour"] = pd.to_datetime(w["forecast_at"]).dt.tz_convert(
+        "Asia/Singapore"
+    )
+    df = df.merge(w[["weather_hour", "temperature_2m", "rain"]], on="weather_hour", how="left")
+    missing = df["temperature_2m"].isna() | df["rain"].isna()
+    if missing.any():
+        raise ValueError(
+            f"Missing weather for slots: {df.loc[missing, 'timestamp'].tolist()}"
+        )
+
+    predictions = model.predict(df[FEATURE_COLS])
+    return [clamp_occupancy(p, gym_capacity) for p in predictions]
+
+
 def predict_crowd(
     supabase: Client,
     timestamp: datetime,
@@ -68,7 +113,7 @@ def predict_crowd(
         supabase, timestamp, gym_id, gym_name, gym_capacity
     )
     predictions = pipeline.predict(test_df[FEATURE_COLS])
-    occupancy = int(round(float(predictions[0])))
+    occupancy = clamp_occupancy(predictions[0], gym_capacity)
 
     rows = [
         {
@@ -77,6 +122,7 @@ def predict_crowd(
             "occupancy": occupancy,
             "capacity": gym_capacity,
             "model_version": MODEL_VERSION,
+            "source": "on_demand",
         }
     ]
 

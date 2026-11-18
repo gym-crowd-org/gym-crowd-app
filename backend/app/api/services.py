@@ -45,7 +45,7 @@ def _run(query: Any) -> Any:
 def get_gym_by_slug(supabase: Client, slug: str) -> dict[str, Any]:
     result = _run(
         supabase.table("gyms")
-        .select("id, slug, name, capacity, timezone, is_active")
+        .select("id, slug, name, capacity, timezone, is_active, opens_at, closes_at")
         .eq("slug", slug)
         .eq("is_active", True)
         .limit(1)
@@ -58,7 +58,7 @@ def get_gym_by_slug(supabase: Client, slug: str) -> dict[str, Any]:
 def list_gyms(supabase: Client) -> list[dict[str, Any]]:
     result = _run(
         supabase.table("gyms")
-        .select("id, slug, name, capacity, timezone, is_active")
+        .select("id, slug, name, capacity, timezone, is_active, opens_at, closes_at")
         .eq("is_active", True)
         .order("name")
     )
@@ -174,11 +174,15 @@ def history_predictions(
     gym_id: UUID | str,
     from_ts: datetime,
     to_ts: datetime,
+    model_version: str,
+    source: str = "daily_batch",
 ) -> list[dict[str, Any]]:
     result = _run(
         supabase.table("crowd_predictions")
         .select("predicted_for, occupancy, capacity, model_version")
         .eq("gym_id", str(gym_id))
+        .eq("model_version", model_version)
+        .eq("source", source)
         .gte("predicted_for", from_ts.isoformat())
         .lte("predicted_for", to_ts.isoformat())
         .order("predicted_for", desc=False)
@@ -196,6 +200,6 @@ def upsert_prediction(supabase: Client, rows: dict[str, Any]):
     _run(
         supabase.table("crowd_predictions").upsert(
             rows,
-            on_conflict="gym_id,predicted_for,model_version",
+            on_conflict="gym_id,predicted_for,model_version,source",
         )
     )

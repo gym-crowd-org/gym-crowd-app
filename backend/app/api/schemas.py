@@ -1,4 +1,5 @@
-from datetime import datetime
+import datetime as dt
+from datetime import datetime, time
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -11,6 +12,8 @@ class GymOut(BaseModel):
     capacity: int
     timezone: str
     is_active: bool
+    opens_at: time
+    closes_at: time
 
 
 class WeatherForecastCreate(BaseModel):
@@ -77,14 +80,23 @@ class PredictForecastOut(BaseModel):
 
 class HistoryPointOut(BaseModel):
     at: datetime
-    actual: int | None = None
-    predicted: int | None = None
+    occupancy: int
     capacity: int
+    occupancy_pct: float = Field(description="occupancy / capacity")
 
 
 class HistoryOut(BaseModel):
     gym_slug: str
     gym_name: str
-    from_ts: datetime
-    to_ts: datetime
-    points: list[HistoryPointOut]
+    date: dt.date = Field(description="Day in Asia/Singapore")
+    opens_at: datetime
+    closes_at: datetime
+    capacity: int
+    model_version: str | None
+    last_reading_at: datetime | None = Field(
+        description="Latest reading for this gym on any day (for staleness checks)"
+    )
+    actual: list[HistoryPointOut]
+    predicted: list[HistoryPointOut] = Field(
+        description="Daily-batch forecast for the current MODEL_VERSION"
+    )
