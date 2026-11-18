@@ -33,6 +33,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: gh-ingest-readings
           role-duration-seconds: 900
+          role-skip-session-tagging: true
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Download gym_crowd.csv
