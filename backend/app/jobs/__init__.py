@@ -1,12 +1,5 @@
-"""Scheduled jobs (scrape + precompute).
+"""Scheduled jobs (hourly ingest + daily forecast).
 
-Intended to be invoked by GitHub Actions / cron, not by request handlers.
+Invoked by GitHub Actions cron via `python -m app.jobs <command>`, not by
+request handlers. See .github/workflows/.
 """
-
-
-def scrape_occupancy() -> None:
-    raise NotImplementedError("Occupancy scraper not implemented yet.")
-
-
-def precompute_predictions(hours: int = 24) -> None:
-    raise NotImplementedError("Prediction precompute job not implemented yet.")

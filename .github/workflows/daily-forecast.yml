@@ -1,0 +1,66 @@
+name: Daily crowd forecast
+
+on:
+  schedule:
+    - cron: "0 21 * * *" # 05:00 Asia/Singapore (UTC+8), predicts that SGT day
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "SGT date to forecast (YYYY-MM-DD). Empty = today in SGT."
+        required: false
+
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MODEL_VERSION: ${{ vars.MODEL_VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume AWS role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: gh-daily-forecast
+          role-duration-seconds: 900
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Download model
+        run: |
+          mkdir -p models
+          aws s3 cp \
+            "s3://${{ vars.AWS_S3_BUCKET }}/models/gym_crowd_model_${MODEL_VERSION}.joblib" \
+            "models/gym_crowd_model_${MODEL_VERSION}.joblib"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Predict today's slots
+        env:
+          FORECAST_DATE: ${{ inputs.date }}
+        run: |
+          if [ -n "$FORECAST_DATE" ]; then
+            python -m app.jobs forecast --date "$FORECAST_DATE"
+          else
+            python -m app.jobs forecast
+          fi

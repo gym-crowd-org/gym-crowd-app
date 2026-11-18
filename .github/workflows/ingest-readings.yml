@@ -1,0 +1,50 @@
+name: Ingest crowd readings
+
+on:
+  schedule:
+    - cron: "10 * * * *" # every hour at :10 (GitHub may start it a few minutes late)
+  workflow_dispatch:
+
+concurrency:
+  group: ingest-readings
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume AWS role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: gh-ingest-readings
+          role-duration-seconds: 900
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Download gym_crowd.csv
+        run: aws s3 cp "s3://${{ vars.AWS_S3_BUCKET }}/gym_crowd.csv" "$RUNNER_TEMP/gym_crowd.csv"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Upsert new readings
+        run: python -m app.jobs ingest --csv "$RUNNER_TEMP/gym_crowd.csv"

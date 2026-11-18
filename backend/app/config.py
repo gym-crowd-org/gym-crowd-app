@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     supabase_url: str
-    supabase_publishable_key: str
+    supabase_publishable_key: str | None = None
     supabase_service_role_key: str | None = None
     supabase_db_password: str | None = None
 
@@ -43,7 +43,12 @@ class Settings(BaseSettings):
 
     @property
     def supabase_key(self) -> str:
-        return self.supabase_service_role_key or self.supabase_publishable_key
+        key = self.supabase_service_role_key or self.supabase_publishable_key
+        if not key:
+            raise ValueError(
+                "Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_PUBLISHABLE_KEY"
+            )
+        return key
 
     @property
     def cors_origin_list(self) -> list[str]:
