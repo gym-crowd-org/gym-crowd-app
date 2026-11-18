@@ -19,8 +19,8 @@ export default function PredictionsPage() {
 
           {/* Gym Cards Grid */}
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-2">
-            <CrowdPrediction gymName="USC Gym" />
-            <CrowdPrediction gymName="UTown Gym" />
+            <CrowdPrediction gymName="USC Gym" gymSlug="usc-gym" />
+            <CrowdPrediction gymName="UTown Gym" gymSlug="utown-gym" />
           </div>
         </div>
       </main>

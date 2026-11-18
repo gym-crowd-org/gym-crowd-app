@@ -6,6 +6,7 @@ import { Button } from "@base-ui/react/button";
 
 interface CrowdPredictionProps {
   gymName: string;
+  gymSlug: string;
   disablePredict?: boolean;
 }
 
@@ -62,6 +63,7 @@ function getLevelFromPercentage(percentage: number) {
 
 export default function CrowdPrediction({
   gymName,
+  gymSlug,
   disablePredict,
 }: CrowdPredictionProps) {
   const [selectedDate, setSelectedDate] = useState("");
@@ -92,7 +94,7 @@ export default function CrowdPrediction({
 
   const getCrowdLevel = async (time: string): Promise<CrowdLevel> => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-    const params = new URLSearchParams({ timestamp: time });
+    const params = new URLSearchParams({ gym: gymSlug, timestamp: time });
     const response = await fetch(
       `${baseUrl}/api/predict/forecast?${params.toString()}`,
     );
