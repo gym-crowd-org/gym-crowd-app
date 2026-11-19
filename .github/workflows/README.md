@@ -2,8 +2,8 @@
 
 | Workflow | Schedule | What it does |
 | --- | --- | --- |
-| `ingest-readings.yml` | hourly at :10 | Downloads `s3://$AWS_S3_BUCKET/gym_crowd.csv` and upserts new rows into `crowd_readings` |
-| `daily-forecast.yml` | 05:00 SGT (21:00 UTC) | Downloads `models/gym_crowd_model_$MODEL_VERSION.joblib`, fetches the Open-Meteo forecast once, writes 30-min `daily_batch` predictions for today's opening hours |
+| `ingest-readings.yml` | hourly at :10 (best effort) | Backstop: downloads `s3://$AWS_S3_BUCKET/gym_crowd.csv` and upserts the last 2 days into `crowd_readings`. The scraper Lambda writes each reading directly every 15 min. |
+| `daily-forecast.yml` | 00:17 SGT (16:17 UTC) | Downloads `models/gym_crowd_model_$MODEL_VERSION.joblib`, fetches the Open-Meteo forecast once, writes 30-min `daily_batch` predictions for today's opening hours |
 
 Both can also be started by hand from the Actions tab (`workflow_dispatch`); the forecast takes an optional `date`.
 
