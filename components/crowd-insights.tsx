@@ -318,7 +318,7 @@ export default function CrowdInsights() {
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>
-            Readings update hourly · Forecast made at 05:00
+            Readings every 15 min · Forecast made before opening
             {history?.model_version ? ` · model ${history.model_version}` : ""}
           </span>
           <span className="flex items-center gap-1.5">

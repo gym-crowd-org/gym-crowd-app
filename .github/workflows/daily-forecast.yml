@@ -2,7 +2,9 @@ name: Daily crowd forecast
 
 on:
   schedule:
-    - cron: "0 21 * * *" # 05:00 Asia/Singapore (UTC+8), predicts that SGT day
+    - cron: "17 16 * * *" # 00:17 Asia/Singapore (UTC+8), predicts that SGT day.
+    # GitHub cron can run hours late; starting just after midnight leaves time
+    # to finish before the gyms open at 07:00.
   workflow_dispatch:
     inputs:
       date:

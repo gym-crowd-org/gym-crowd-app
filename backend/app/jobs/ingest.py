@@ -6,15 +6,18 @@ CSV format (fixed, produced by the scraper):
 
 - `name` must equal gyms.name exactly; unknown names are logged and skipped.
 - Timestamps without an offset are Asia/Singapore local time.
-- Only rows newer than the latest stored reading per gym are sent, and the
-  upsert ignores (gym_id, observed_at) duplicates, so re-runs are safe.
+- The scraper Lambda also writes each reading straight to crowd_readings, so
+  this job is the backstop: it re-sends everything from LOOKBACK before each
+  gym's latest stored reading, which backfills readings the Lambda failed to
+  write even when a newer one landed. The upsert ignores (gym_id, observed_at)
+  duplicates, so re-runs are safe.
 """
 
 from __future__ import annotations
 
 import csv
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -27,6 +30,7 @@ log = logging.getLogger(__name__)
 
 SG_TZ = ZoneInfo("Asia/Singapore")
 CHUNK_SIZE = 500
+LOOKBACK = timedelta(days=2)
 
 
 def parse_timestamp(value: str) -> datetime:
@@ -81,16 +85,18 @@ def ingest_csv(supabase: Client, path: Path) -> dict[str, int]:
     gyms_by_name = {g["name"]: g for g in gyms}
     rows = parse_csv(path, gyms_by_name)
 
-    # Keep only rows newer than what each gym already has.
-    latest: dict[str, datetime | None] = {}
+    # Send rows from LOOKBACK before each gym's latest stored reading onwards.
+    cutoff: dict[str, datetime | None] = {}
     for gym in gyms:
         reading = latest_reading(supabase, gym["id"])
-        latest[gym["id"]] = _as_singapore(reading["observed_at"]) if reading else None
+        cutoff[gym["id"]] = (
+            _as_singapore(reading["observed_at"]) - LOOKBACK if reading else None
+        )
 
     new_rows = [
         {**r, "observed_at": r["observed_at"].isoformat()}
         for r in rows
-        if latest[r["gym_id"]] is None or r["observed_at"] > latest[r["gym_id"]]
+        if cutoff[r["gym_id"]] is None or r["observed_at"] > cutoff[r["gym_id"]]
     ]
 
     for i in range(0, len(new_rows), CHUNK_SIZE):
@@ -100,6 +106,6 @@ def ingest_csv(supabase: Client, path: Path) -> dict[str, int]:
             ignore_duplicates=True,
         ).execute()
 
-    stats = {"parsed": len(rows), "inserted": len(new_rows)}
+    stats = {"parsed": len(rows), "sent": len(new_rows)}
     log.info("ingest done: %s", stats)
     return stats
